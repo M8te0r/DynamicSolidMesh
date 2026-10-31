@@ -700,6 +700,13 @@ template <typename T, typename TKeyType = slot_map_key64<T>, size_t PAGESIZE = 4
                 {
                     for (size_type elementIndex = 0; elementIndex < p.numUsedElements; elementIndex++)
                     {
+                        const Meta& m = otherPage.meta[elementIndex];
+
+                        if (m.tombstone != 0 || m.inactive != 0)
+                        {
+                            continue;
+                        }
+                        
                         PageAddr addr;
                         addr.page = static_cast<size_type>(pageIndex);
                         addr.index = elementIndex;

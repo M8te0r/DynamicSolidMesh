@@ -1,0 +1,93 @@
+--- a/m_slot_map.h
++++ b/m_slot_map.h
+@@ -77,12 +77,7 @@
+ 
+     public:
+         SlotMap() = default;
+-        SlotMap(const SlotMap &other)
+-            : slots_(other.slots_), free_indices_(other.free_indices_), size_(other.size_)
+-        {
+-            // vector 的复制不保留预留容量；副本也要保证删除时无需分配。
+-            free_indices_.reserve(slots_.size());
+-        }
++        SlotMap(const SlotMap &) = default;
+ 
+         SlotMap &operator=(const SlotMap &other)
+         {
+@@ -113,27 +108,22 @@
+         KeyType emplace(Args &&...args)
+         {
+             SizeType index;
+-            if (!free_indices_.empty())
+-            {
+-                index = free_indices_.back();
++            if (free_count_ != 0)
++            {
++                index = free_indices_[free_count_ - 1];
+                 auto &slot = slots_[index];
+                 // 构造成功后才弹出下标；失败时仍能继续复用该空槽。
+                 slot.value.emplace(std::forward<Args>(args)...);
+-                free_indices_.pop_back();
++                --free_count_;
+             }
+             else
+             {
+                 if (slots_.size() == invalid_index)
+                     throw std::length_error("SlotMap has no available slot indices");
+-                // 每个槽位都可能被删除：提前准备容量，使 erase() 不分配内存。
+-                // 按倍数增长，避免每次追加都重新分配下标数组。
+-                if (free_indices_.capacity() == slots_.size())
+-                {
+-                    const auto capacity = free_indices_.capacity();
+-                    const auto next_capacity = capacity == 0 ? 1 :
+-                        (capacity > invalid_index / 2 ? invalid_index : capacity * 2);
+-                    free_indices_.reserve(next_capacity);
+-                }
++                // 每个槽位都预留一个下标位置，删除时只需写入，不会分配。
++                // 先扩大缓冲区：后续构造失败时，最多留下一个未使用的位置。
++                if (free_indices_.size() == slots_.size())
++                    free_indices_.push_back(0);
+                 index = static_cast<SizeType>(slots_.size());
+                 slots_.emplace_back(std::in_place, std::forward<Args>(args)...);
+             }
+@@ -155,7 +145,7 @@
+             if (slot.generation != std::numeric_limits<SizeType>::max())
+             {
+                 ++slot.generation;
+-                free_indices_.push_back(index);
++                free_indices_[free_count_++] = index;
+             }
+             return true;
+         }
+@@ -179,6 +169,14 @@
+ 
+         SizeType size() const noexcept { return size_; }
+         bool empty() const noexcept { return size_ == 0; }
++
++        // 预留总槽位容量（包括已删除槽位），不创建元素、不改变 key。
++        // 可能使元素指针/引用失效；元素自身的构造仍可能分配内存。
++        void reserve(SizeType count)
++        {
++            free_indices_.reserve(count);
++            slots_.reserve(count);
++        }
+ 
+         // 轻量 range-for 视图：不分配内存，只返回存活元素的 key。
+         // 遍历会扫描空槽；期间不要增删或替换容器。
+@@ -244,12 +242,15 @@
+         {
+             slots_.swap(other.slots_);
+             free_indices_.swap(other.free_indices_);
++            std::swap(free_count_, other.free_count_);
+             std::swap(size_, other.size_);
+         }
+ 
+         std::vector<Slot> slots_;
+-        // 空闲下标按后删先用排列；始终满足 capacity() >= slots_.size()。
++        // [0, free_count_) 是后删先用的空闲栈，其余位置是预留缓冲区。
++        // free_indices_.size() >= slots_.size()；复制后仍保证删除不分配。
+         std::vector<SizeType> free_indices_;
++        SizeType free_count_ = 0;
+         SizeType size_ = 0;
+     };
+ }

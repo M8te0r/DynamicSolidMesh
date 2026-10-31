@@ -1,0 +1,17 @@
+--- a/m_slot_map.h
++++ b/m_slot_map.h
+@@ -180,6 +180,14 @@
+         SizeType size() const noexcept { return size_; }
+         bool empty() const noexcept { return size_ == 0; }
+ 
++        // 预留总槽位容量（包括已删除槽位），不创建元素、不改变 key。
++        // 可能使元素指针/引用失效；元素自身的构造仍可能分配内存。
++        void reserve(SizeType count)
++        {
++            free_indices_.reserve(count);
++            slots_.reserve(count);
++        }
++
+         // 轻量 range-for 视图：不分配内存，只返回存活元素的 key。
+         // 遍历会扫描空槽；期间不要增删或替换容器。
+         // 不提供标准迭代器适配；需要编辑时，先用循环把 key 收集到 vector。

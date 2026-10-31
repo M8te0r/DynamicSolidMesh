@@ -1,0 +1,5 @@
+type,sizeof_T,alignof_T,nothrow_move,trivially_copyable,sizeof_custom,sizeof_dod,sizeof_custom_key,sizeof_dod_key
+Vertex,48,8,1,0,56,80,8,8
+Dedge,40,8,1,0,56,80,8,8
+Halfface,56,8,1,1,56,80,8,8
+Cell,56,8,1,1,56,80,8,8

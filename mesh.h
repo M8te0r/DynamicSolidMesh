@@ -1,57 +1,9 @@
-#include <slot_map.h>
-#include <Eigen/Core>
+#pragma once
+#include "mesh_element.h"
+#include <array>
+
 namespace MyMesh
 {
-    enum class FaceType{
-        UNSET,
-        TRIANGLE,
-        QUADRILATERAL
-    };
-
-    enum class CellType{
-        UNSET,
-        TET,
-        HEX,
-        PYRAMID
-    };
-
-    namespace CellOrderTemplate{
-        constexpr int tet_faces[4][3] = {
-            {1, 2, 3},
-            {0, 3, 2},
-            {0, 1, 3},
-            {0, 2, 1}};
-    }
-
-    // ============================================================
-    // mesh 元素定义
-    // ============================================================
-    struct Vertex;
-    struct Dedge;
-    struct Halfface;
-    struct Cell;
-
-    struct Vertex
-    {
-        Eigen::Vector3d pos;
-    };
-
-    struct Dedge{
-        Vertex *v0 = nullptr;
-        Vertex *v1 = nullptr;
-    };
-
-    struct Halfface{
-        FaceType type = FaceType::UNSET;
-        std::array<Dedge*,4> dedges{}; // 对齐之后的指针，一个face最多4个顶点
-        Halfface *opposite = nullptr;
-        Cell *cell = nullptr;
-    };
-
-    struct Cell{
-        CellType type = CellType::UNSET;
-        std::array<Halfface*,6> hfs{}; // 对齐之后的指针，一个cell最多6个面，outward orientation
-    };
 
     // ============================================================
     // mesh本体类
@@ -59,63 +11,81 @@ namespace MyMesh
 
     class Mesh
     {
-        using SizeType = uint32_t;
-
-        // 使用uint32_t存储元素个数，所以使用uint64_t存储对应的键位
-        using VertexStorage = dod::slot_map64<Vertex>;
-        using DedgeStorage = dod::slot_map64<Dedge>;
-        using HalffaceStorage = dod::slot_map64<Halfface>;
-        using CellStorage = dod::slot_map64<Cell>;
-
-        using VertexKey = VertexStorage::key;
-        using DedgeKey = DedgeStorage::key;
-        using HalffaceKey = HalffaceStorage::key;
-        using CellKey = CellStorage::key;
+        using VertexStorage   = ElementStorage<Vertex>;
+        using DedgeStorage    = ElementStorage<Dedge>;
+        using HalffaceStorage = ElementStorage<Halfface>;
+        using CellStorage     = ElementStorage<Cell>;
 
     public:
         Mesh() = default;
         ~Mesh() = default;
+        Mesh(const Mesh&) = default;
+        Mesh& operator=(const Mesh& other);
+        Mesh(Mesh&& other);
+        Mesh& operator=(Mesh&& other);
 
     public:
+        using SizeType = VertexStorage::size_type;
+
         // 基本信息
         SizeType num_vertices() const;
         SizeType num_dedges() const;
         SizeType num_halffaces() const;
         SizeType num_cells() const;
 
-        // range for 遍历
-        vertices();
-        dedges();
-        halffaces();
-        cells();
+        // 无效 handle 返回空 handle / false；插入时也检查顶点是否重复。
+        // 调用方负责保证 order 合法，以及增删后的网格仍为共形流形。
+        // 不提供内存分配异常时的回滚保证。
+        VertexHandle add_isolated_vertex(Real x, Real y, Real z);
+        CellHandle add_hex(const std::array<VertexHandle, 8>& vertices,
+                           const std::array<std::array<int, 4>, 6>& order = CellOrderTemplate::hex_faces);
+        CellHandle add_tet(const std::array<VertexHandle, 4>& vertices,
+                           const std::array<std::array<int, 3>, 4>& order = CellOrderTemplate::tet_faces);
+        CellHandle add_pyramid(const std::array<VertexHandle, 5>& vertices,
+                               const std::array<std::array<int, 4>, 5>& order = CellOrderTemplate::pyramid_faces);
+        bool delete_isolated_vertex(VertexHandle handle);
+        bool delete_cell(CellHandle handle); // 清理无用边和半面，保留孤立顶点。
 
-        // 索引遍历
-        vertex(VertexKey key);
-        dedge(DedgeKey key);
-        halfface(HalffaceKey key);
-        cell(CellKey key);
+        // range for 遍历；增删前应先收集 handle 快照。
+        HandleRange<VertexStorage, VertexHandle> vertices() const noexcept;
+        HandleRange<DedgeStorage, DedgeHandle> dedges() const noexcept;
+        HandleRange<HalffaceStorage, HalffaceHandle> halffaces() const noexcept;
+        HandleRange<CellStorage, CellHandle> cells() const noexcept;
+
+        // 元素访问
+        const Vertex *vertex(VertexHandle handle) const;
+        const Dedge *dedge(DedgeHandle handle) const;
+        const Halfface *halfface(HalffaceHandle handle) const;
+        const Cell *cell(CellHandle handle) const;
+
+        // 复制
+        Mesh copy() const;
+
+        // 修改
+        bool set_vertex_position(VertexHandle handle, Real x, Real y, Real z);
 
     public:
-        // 查询
+        // 邻接 1-ring
+        std::vector<VertexHandle> vertex_vertices(VertexHandle handle) const; // vertex
 
-        // 邻接 1-ring 
-        std::vector<const Vertex *> vertex_vertices(const Vertex *v) const; // vertex
+        std::vector<CellHandle> edge_cells(DedgeHandle handle) const; // edge
+        // 正向模板下，从 target 看向 source 为逆时针。边界返回开链，内部返回环（不重复首项）。
+        std::vector<CellHandle> edge_cells_ccw(DedgeHandle handle) const;
 
-        std::vector<const Cell *> edge_cells(const Dedge *e) const; // edge
-        std::vector<const Cell *> edge_cells_ccw(const Dedge *e) const;
+        std::vector<CellHandle> cell_cells(CellHandle handle) const; // cell
 
-        std::vector<const Cell*> cell_cells(const Cell* c) const;   // cell
-
-
-
-        //
+    private:
+        template <std::size_t V, std::size_t F, std::size_t E>
+        CellHandle insert_cell(CellType type, const std::array<VertexHandle, V>& vertices,
+                               const std::array<std::array<int, E>, F>& order);
+        DedgeHandle find_dedge(VertexHandle source, VertexHandle target) const;
+        HalffaceHandle find_opposite(const std::vector<VertexHandle>& face) const;
+        void swap(Mesh& other) noexcept;
 
     private:
         VertexStorage vertices_;
         DedgeStorage dedges_;
         HalffaceStorage halffaces_;
         CellStorage cells_;
-
-        std::unordered_map
     };
 }

@@ -1,0 +1,22 @@
+{
+  "compiler": "Apple clang version 21.0.0 (clang-2100.4.1.1)\nTarget: arm64-apple-darwin27.2.0\nThread model: posix\nInstalledDir: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin\n",
+  "platform": "macOS-27.2-arm64-arm-64bit",
+  "machine": "arm64",
+  "flags": "-O3 -DNDEBUG; C++17",
+  "size": 1000000,
+  "measured_repeats": 7,
+  "warmup_repeats": 1,
+  "sha256_after": {
+    "m_slot_map.h": "dea032eb8e1b61e603ea1eb12bf54acdf6fc3c776cefdf29d7e0d5b84403d4c0",
+    "slot_map.h": "1f1870768d572425e0c24c4addd6b4b18ec7b3951a3b6a670622cfe74723fa7c",
+    "mesh_element.h": "968a61aa35b1e88e27946ce4a41d0090edc6a1a09ef16a439c4eeea95242682e",
+    "mesh_element_template.h": "97f23e5369fa5272a437b29d7e7ecc98a82f0297b696ab9a2abd5dd9d9d7a4dc",
+    "handle.h": "78a806f565537152c0237a74985c1ae19ea504457da6c17ef36b26749bd94d4c",
+    "benchmarks/slot_map_bench.cpp": "9c7d8f5a02e7c7913f1d87d4a761c4d736773c008ead36000e5b83cfe4b74b2c",
+    "benchmarks/allocation_tracker.h": "bedb9ec8f393ccd53d008a5a5233da2adaa36f1de3ef8f7d116dc95534a3a28f"
+  },
+  "sha256_before": {
+    "m_slot_map.h": "145db6af0676fcac816323d35ae550934ef925fa7b18d99d49115cd2b28e8acd",
+    "slot_map.h": "1f1870768d572425e0c24c4addd6b4b18ec7b3951a3b6a670622cfe74723fa7c"
+  }
+}
