@@ -1,28 +1,24 @@
 cmake_minimum_required(VERSION 3.16)
 project(DynamicSolidMesh LANGUAGES CXX)
-add_library(mesh_headers INTERFACE)
-target_include_directories(mesh_headers INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}")
-target_include_directories(mesh_headers SYSTEM INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/eigen")
-target_compile_features(mesh_headers INTERFACE cxx_std_17)
-add_library(dynamic_solid_mesh mesh.cpp)
-target_link_libraries(dynamic_solid_mesh PUBLIC mesh_headers)
-add_executable(mesh_example examples/mesh_example.cpp)
-target_link_libraries(mesh_example PRIVATE dynamic_solid_mesh)
-include(CTest)
-if(BUILD_TESTING)
-    add_executable(mesh_tests tests/mesh_tests.cpp)
-    target_link_libraries(mesh_tests PRIVATE dynamic_solid_mesh)
-    add_test(NAME mesh_tests COMMAND mesh_tests)
-endif()
-# 历史基准依赖已移除的 m_slot_map.h，默认不参与 Mesh 构建。
-option(BUILD_SLOT_MAP_BENCHMARKS "Build historical slot-map comparisons" OFF)
-if(BUILD_SLOT_MAP_BENCHMARKS)
-    if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/m_slot_map.h")
-        message(FATAL_ERROR "Historical comparisons require m_slot_map.h; see benchmarks/README.md")
-    endif()
-    add_executable(slot_map_bench benchmarks/slot_map_bench.cpp)
-    add_executable(slot_map_memory benchmarks/slot_map_bench.cpp)
-    target_link_libraries(slot_map_bench PRIVATE mesh_headers)
-    target_link_libraries(slot_map_memory PRIVATE mesh_headers)
-    target_compile_definitions(slot_map_memory PRIVATE SM_TRACK_MEMORY=1)
+
+add_library(dynamic_solid_mesh STATIC src/mesh.cpp)
+add_library(DynamicSolidMesh::DynamicSolidMesh ALIAS dynamic_solid_mesh)
+
+target_compile_features(dynamic_solid_mesh PUBLIC cxx_std_17)
+set_target_properties(dynamic_solid_mesh PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+target_include_directories(dynamic_solid_mesh PUBLIC
+    "${CMAKE_CURRENT_SOURCE_DIR}/include"
+)
+target_include_directories(dynamic_solid_mesh SYSTEM PUBLIC
+    "${CMAKE_CURRENT_SOURCE_DIR}/third_party"
+)
+
+# 优先复用父项目的 Eigen 目标，否则直接使用附带子模块的头文件。
+if(TARGET Eigen3::Eigen)
+    target_link_libraries(dynamic_solid_mesh PUBLIC Eigen3::Eigen)
+else()
+    target_include_directories(dynamic_solid_mesh SYSTEM PUBLIC
+        "${CMAKE_CURRENT_SOURCE_DIR}/third_party/eigen"
+    )
 endif()

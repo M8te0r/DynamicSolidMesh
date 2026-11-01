@@ -532,9 +532,9 @@ template <typename T, typename TKeyType = slot_map_key64<T>, size_t PAGESIZE = 4
         const Meta& m = getMetaByAddr(addr);
 
         version_t version = key::toVersion(k);
-        if (m.version != version)
+        if (m.version != version || m.tombstone || m.inactive)
         {
-            // version mismatch, slot has been reused
+            // version mismatch, or slot has been deleted or deactivated
             return nullptr;
         }
         SLOT_MAP_ASSERT(m.version != key::kInvalidVersion);

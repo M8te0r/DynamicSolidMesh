@@ -1,5 +1,5 @@
 #include <iostream>
-#include "mesh.h"
+#include <DynamicSolidMesh/mesh.h>
 
 int main()
 {

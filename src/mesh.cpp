@@ -1,4 +1,4 @@
-#include "mesh.h"
+#include <DynamicSolidMesh/mesh.h>
 
 #include <algorithm>
 #include <cmath>

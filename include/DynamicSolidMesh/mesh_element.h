@@ -3,7 +3,7 @@
 #include <Eigen/Core>
 #include <array>
 #include <vector>
-#include "slot_map.h"
+#include <SlotMap/slot_map.h>
 
 
 #include "mesh_element_template.h"

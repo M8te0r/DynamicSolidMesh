@@ -1,33 +1,74 @@
 # DynamicSolidMesh
 
-当前实现提供 `mesh.h` 中的全部接口：元素计数、孤立顶点与单元的增删、
+一个 C++17 混合单元体积网格库，提供元素计数、孤立顶点与单元的增删、
 handle 查询和遍历、深拷贝，以及顶点/边/单元邻接查询。
 支持 TET、HEX、PYRAMID，使用项目中的 `dod::slot_map64` 存储。
 
-## 构建与运行
+## 在其他 CMake 项目中使用
+
+将本仓库放在父项目的 `DynamicSolidMesh/` 目录中，然后在父项目的 `CMakeLists.txt` 中加入：
+
+```cmake
+add_subdirectory(DynamicSolidMesh)
+
+add_executable(my_app main.cpp)
+target_link_libraries(my_app PRIVATE DynamicSolidMesh::DynamicSolidMesh)
+```
+
+`add_subdirectory` 创建库目标，`target_link_libraries` 将库及其头文件路径、第三方依赖和
+C++17 要求传递给使用者，无需手动设置 include 路径或添加 `mesh.cpp`。
+
+在父项目的源文件中：
+
+```cpp
+#include <DynamicSolidMesh/mesh.h>
+
+int main()
+{
+    MyMesh::Mesh mesh;
+    auto vertex = mesh.add_isolated_vertex(0, 0, 0);
+    return mesh.set_vertex_position(vertex, 1, 2, 3) ? 0 : 1;
+}
+```
+
+库以静态库形式构建，并开启 PIC，可链接进可执行文件或父项目的动态库。
+`DynamicSolidMesh::DynamicSolidMesh` 是公开链接名称，实际构建目标为 `dynamic_solid_mesh`。
+构建只定义库目标，不添加示例、测试或基准程序，也不修改父项目的全局编译选项。
+
+若父项目已提供 `Eigen3::Eigen`，库会复用该目标；否则使用仓库中的 `third_party/eigen/` 子模块。
+使用附带 Eigen 时，首次获取仓库后需初始化子模块：
+
+```sh
+git submodule update --init --recursive
+```
+
+## 目录结构与独立构建
+
+```text
+DynamicSolidMesh/
+├── CMakeLists.txt
+├── include/DynamicSolidMesh/  # 公开头文件
+│   ├── mesh.h
+│   ├── mesh_element.h
+│   ├── mesh_element_template.h
+│   └── handle.h
+├── src/mesh.cpp               # 库实现
+├── third_party/
+│   ├── SlotMap/slot_map.h     # dod 容器
+│   └── eigen/                # Eigen Git 子模块
+└── docs/api_sketch.cpp        # 原 main.cpp 接口草稿，不参与构建
+```
+
+也可以独立编译库：
 
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --parallel 2
-ctest --test-dir build --output-on-failure
-./build/mesh_example
-```
-
-链接目标为 `dynamic_solid_mesh`，公开项目头文件、随项目提供的 Eigen 以及 C++17 要求。
-示例代码在 `examples/mesh_example.cpp`。原有 `main.cpp` 是接口设计草稿，包含未来的
-`edge_collapse` 等调用，不参与当前构建。
-
-示例输出：
-
-```text
-vertices=5, dedges=18, halffaces=8, cells=2
-neighbors of first cell=1
-original cells=2, copy cells=0
 ```
 
 ## 顶点编号和面方向
 
-坐标数值类型集中定义在 `mesh_element.h`：
+坐标数值类型集中定义在 `include/DynamicSolidMesh/mesh_element.h`：
 
 ```cpp
 using Real = double;
@@ -45,7 +86,8 @@ bool updated = mesh.set_vertex_position(v, 1, 2, 3);
 修改坐标不会改变 handle 或连接关系。无效 handle、NaN 或无穷坐标返回 `false`，
 原坐标保持不变；成功返回 `true`。
 
-所有面模板见 `mesh_element_template.h`。调用方应提供正向单元编号，面环从单元外侧看为逆时针。
+所有面模板见 `include/DynamicSolidMesh/mesh_element_template.h`。
+调用方应提供正向单元编号，面环从单元外侧看为逆时针。
 
 - TET：参考坐标依次为 `(0,0,0), (1,0,0), (0,1,0), (0,0,1)`。
 - HEX：底层 `0,1,2,3` 为 `(0,0,0), (1,0,0), (1,1,0), (0,1,0)`；
@@ -114,15 +156,5 @@ PYRAMID 的三角面以末尾 `-1` 补齐到四项，底面行可以放在任意
 handle 不检测 Mesh 归属，调用方负责选择对应的网格。
 不要求原网格与副本在后续插入时产生相同的 handle。
 
-`slot_map.h` 保留实现 Mesh 之前的版本，包括项目原有的“复制时跳过已删除槽位”修改；
-撤销本轮 Mesh 实现添加的 dod 修改和接口。Mesh 只使用原有的容器接口。
-
-## 验证
-
-测试包含共享面和混合单元、边环正反顺序、内部顶点与空腔、无效 handle 与重复顶点、
-有空槽的复制和后续编辑、跨页增长，以及各类引用的双向一致性。
-三种插入接口均覆盖默认模板和自定义模板，并在编译期检查不接受错误长度的顶点数组。
-
-已在 AppleClang / C++17 下通过 `Real = double` 和 `Real = float` 的 Release 构建与测试，
-包括共享顶点坐标修改后连接关系保持不变，以及无效 handle 和非有限坐标的处理。
-尚未进行整网格算法的规模性能评估。
+`third_party/SlotMap/slot_map.h` 保留项目原有的“复制时跳过已删除槽位”修改。
+目录调整不修改 dod 的实现。
